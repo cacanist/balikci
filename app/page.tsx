@@ -29,6 +29,7 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const [showWelcomePopup, setShowWelcomePopup] = useState(false)
+  const [showAboutPopup, setShowAboutPopup] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
@@ -213,7 +214,7 @@ KURAL: Kod yazmadan öğret.`,
             ...messages.filter(m => m.role !== 'system'),
             userMessage,
           ],
-          max_tokens: 1000,
+          max_tokens: 1200,
         }),
       })
 
@@ -294,6 +295,18 @@ KURAL: Kod yazmadan öğret.`,
       }
     }
   }
+
+  const handleExampleQuestion = (question: string) => {
+    setInputValue(question)
+    inputRef.current?.focus()
+  }
+
+  const exampleQuestions = [
+    "Recursive fonksiyon ne zaman kullanmalıyım?",
+    "Pass by value ve pass by reference farkı nedir?",
+    "Stack ve Heap memory arasındaki fark nedir?",
+    "Time complexity nedir ve nasıl hesaplanır?"
+  ]
 
   return (
     <div className="h-screen flex flex-col" style={{ backgroundColor: '#0D1117' }}>
@@ -397,7 +410,29 @@ KURAL: Kod yazmadan öğret.`,
 
       {/* Bottom Input Area - ChatGPT Style */}
       <footer className="border-t px-4 py-4" style={{ borderColor: '#30363D', backgroundColor: '#0D1117' }}>
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-3xl mx-auto space-y-3">
+          {/* Example Questions - Only show when chat is empty */}
+          {messages.length === 0 && (
+            <div className="grid grid-cols-2 gap-2 animate-fade-in">
+              {exampleQuestions.map((question, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleExampleQuestion(question)}
+                  className="px-4 py-3 rounded-xl text-sm text-left transition-all hover:scale-105"
+                  style={{ 
+                    backgroundColor: '#1E1E1E', 
+                    color: '#D1D5DA',
+                    border: '1px solid #30363D'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2B3A55'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1E1E1E'}
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex gap-3 items-end rounded-2xl px-4 py-3" style={{ backgroundColor: '#343541', border: '1px solid #30363D' }}>
             <textarea
               ref={inputRef}
@@ -439,6 +474,15 @@ KURAL: Kod yazmadan öğret.`,
         </div>
       </footer>
 
+      {/* Info Button - Bottom Right */}
+      <button
+        onClick={() => setShowAboutPopup(true)}
+        className="fixed bottom-6 right-6 w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-110 z-40"
+        style={{ backgroundColor: '#2B3A55', color: '#D1D5DA' }}
+      >
+        <span className="text-xl font-bold">i</span>
+      </button>
+
       {/* Welcome Popup Modal */}
       {showWelcomePopup && (
         <div 
@@ -466,6 +510,52 @@ KURAL: Kod yazmadan öğret.`,
               style={{ backgroundColor: '#10A37F', color: '#fff' }}
             >
               Anladım, Başlayalım!
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* About Popup Modal */}
+      {showAboutPopup && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50 px-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
+          onClick={() => setShowAboutPopup(false)}
+        >
+          <div 
+            className="max-w-md w-full rounded-2xl p-8 shadow-2xl animate-fade-in"
+            style={{ backgroundColor: '#1E1E1E', border: '1px solid #30363D' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-2xl font-bold mb-6 text-center" style={{ color: '#D1D5DA' }}>
+              ℹ️ Hakkında
+            </h2>
+            <div className="space-y-4 mb-6" style={{ color: '#8B949E' }}>
+              <div className="text-center space-y-2">
+                <p className="text-[15px]">
+                  <strong style={{ color: '#D1D5DA' }}>Geliştirici:</strong> Çaça
+                </p>
+                <p className="text-[15px]">
+                  <strong style={{ color: '#D1D5DA' }}>Mail:</strong>{' '}
+                  <a 
+                    href="mailto:caglarokuducu@gmail.com" 
+                    className="hover:underline transition-colors"
+                    style={{ color: '#10A37F' }}
+                  >
+                    caglarokuducu@gmail.com
+                  </a>
+                </p>
+              </div>
+              <div className="pt-4 border-t text-center text-sm" style={{ borderColor: '#30363D', color: '#8B949E' }}>
+                Destek veya soru sormak için ulaşabilirsiniz.
+              </div>
+            </div>
+            <button
+              onClick={() => setShowAboutPopup(false)}
+              className="w-full py-3 rounded-lg font-medium transition-all hover:opacity-90"
+              style={{ backgroundColor: '#2B3A55', color: '#fff' }}
+            >
+              Kapat
             </button>
           </div>
         </div>
