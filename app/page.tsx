@@ -19,6 +19,7 @@ interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp?: number
+  reasoning_details?: false
 }
 
 export default function ChatPage() {
@@ -113,52 +114,6 @@ export default function ChatPage() {
     }
   }, [isLoading])
 
-  // Streaming effect - typing animation
-  const streamText = async (text: string) => {
-    // Check if cancelled before starting
-    if (streamingCancelledRef.current) {
-      streamingCancelledRef.current = false
-      return text
-    }
-
-    // Eğer streaming kapalıysa, direkt göster
-    if (!TYPING_SPEED.ENABLED) {
-      setIsStreaming(true)
-      setStreamingMessage(text)
-      await new Promise(resolve => setTimeout(resolve, 100)) // Minimal gecikme
-      setIsStreaming(false)
-      return text
-    }
-
-    setIsStreaming(true)
-    setStreamingMessage('')
-    
-    const chars = text.split('')
-    let currentText = ''
-    
-    // Chunk bazlı yazma (daha hızlı)
-    for (let i = 0; i < chars.length; i += TYPING_SPEED.CHUNK_SIZE) {
-      // Check if streaming was cancelled
-      if (streamingCancelledRef.current) {
-        streamingCancelledRef.current = false
-        setIsStreaming(false)
-        setStreamingMessage('')
-        return text
-      }
-
-      // CHUNK_SIZE kadar karakter ekle
-      const chunk = chars.slice(i, i + TYPING_SPEED.CHUNK_SIZE).join('')
-      currentText += chunk
-      setStreamingMessage(currentText)
-      
-      // Rastgele gecikme
-      const delay = Math.random() * (TYPING_SPEED.MAX_DELAY - TYPING_SPEED.MIN_DELAY) + TYPING_SPEED.MIN_DELAY
-      await new Promise(resolve => setTimeout(resolve, delay))
-    }
-    
-    setIsStreaming(false)
-    return text
-  }
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading || isStreaming) return
@@ -182,19 +137,11 @@ export default function ChatPage() {
     abortControllerRef.current = new AbortController()
 
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        signal: abortControllerRef.current.signal,
-        body: JSON.stringify({
-          model: 'mistralai/devstral-small-2505:free',
-          messages: [
-            {
-              role: 'system',
-              content: `Sen eğitim asistanısın. SADECE yazılım konularında yardım et.
+      // Prepare messages with reasoning_details if available
+      const messagesWithReasoning = [
+        {
+          role: 'system',
+          content: `Sen eğitim asistanısın. SADECE yazılım konularında yardım et.
 
 🚨 ÖĞRETMEN TESPİTİ:
 Eğer kullanıcı kendisinin "öğretmen", "hoca", "teacher", "instructor", "asistan", "akademisyen" olduğunu söylerse:
@@ -216,12 +163,54 @@ Eğer kullanıcı kendisinin "öğretmen", "hoca", "teacher", "instructor", "asi
 • Tek satır syntax göster (array.push gibi)
 • Pseudocode kullan
 
+📏 UZUN KOD/GÖREV KURALI:
+Eğer kullanıcı çok uzun bir kod (100+ satır) veya tüm bir proje kodu gönderirse:
+• ASLA tüm kodu analiz etmeye çalışma
+• Kullanıcıya daha spesifik sorular sor:
+  - "Hangi metodda/fonksiyonda hata var?"
+  - "Hangi kısımda sorun yaşıyorsunuz?"
+  - "Hata mesajı nedir?"
+  - "Hangi satırlarda problem var?"
+• Tüm projeyi analiz etmek yerine, belirli bir bölüme odaklanmasını iste
+• Örnek: "Tüm proje kodunu göndermek yerine, hatanın olduğu metod veya sınıfı paylaşabilir misiniz? Bu şekilde daha hızlı yardımcı olabilirim."
+
 KURAL: Kod yazmadan öğret.`,
-            },
-            ...messages.filter(m => m.role !== 'system'),
-            userMessage,
-          ],
+        },
+        ...messages
+          .filter(m => m.role !== 'system')
+          .map(m => {
+            // Preserve reasoning_details for assistant messages
+            if (m.role === 'assistant' && m.reasoning_details) {
+              return {
+                role: m.role,
+                content: m.content,
+                reasoning_details: m.reasoning_details,
+              }
+            }
+            return {
+              role: m.role,
+              content: m.content,
+            }
+          }),
+        {
+          role: 'user',
+          content: userMessage.content,
+        },
+      ]
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: abortControllerRef.current.signal,
+        body: JSON.stringify({
+          model: 'x-ai/grok-4.1-fast:free',
+          messages: messagesWithReasoning,
+          reasoning: { enabled: true },
           max_tokens: 1200,
+          stream: true, // Enable streaming
         }),
       })
 
@@ -229,16 +218,75 @@ KURAL: Kod yazmadan öğret.`,
         throw new Error(`API Error: ${response.status} ${response.statusText}`)
       }
 
-      const data = await response.json()
-      const aiContent = data.choices[0]?.message?.content || 'Üzgünüm, bir cevap oluşturamadım.'
-      
-      // Stream the AI response with typing animation
-      await streamText(aiContent)
+      // Stream the response
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let fullContent = ''
+      let reasoningDetails = null
+
+      if (!reader) {
+        throw new Error('Stream reader not available')
+      }
+
+      setIsStreaming(true)
+      setStreamingMessage('')
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          
+          if (done) break
+          
+          // Check if request was cancelled
+          if (abortControllerRef.current?.signal.aborted) {
+            reader.cancel()
+            break
+          }
+          
+          const chunk = decoder.decode(value, { stream: true })
+          const lines = chunk.split('\n')
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim()
+              
+              // Skip empty lines and [DONE] marker
+              if (!data || data === '[DONE]') continue
+              
+              try {
+                const json = JSON.parse(data)
+                const delta = json.choices[0]?.delta
+                
+                if (delta?.content) {
+                  fullContent += delta.content
+                  setStreamingMessage(fullContent)
+                }
+                
+                // Preserve reasoning_details if available
+                if (delta?.reasoning_details) {
+                  reasoningDetails = delta.reasoning_details
+                }
+                
+                // Check for final reasoning_details in the response
+                if (json.choices[0]?.message?.reasoning_details) {
+                  reasoningDetails = json.choices[0].message.reasoning_details
+                }
+              } catch (e) {
+                // Skip invalid JSON lines
+                continue
+              }
+            }
+          }
+        }
+      } finally {
+        setIsStreaming(false)
+      }
       
       const aiMessage: Message = {
         role: 'assistant',
-        content: aiContent,
+        content: fullContent || 'Üzgünüm, bir cevap oluşturamadım.',
         timestamp: Date.now(),
+        ...(reasoningDetails && { reasoning_details: reasoningDetails }),
       }
 
       setMessages((prev) => [...prev, aiMessage])
