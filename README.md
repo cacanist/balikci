@@ -58,26 +58,10 @@ Uygulamayı kullanmak için bir OpenRouter API anahtarına ihtiyacınız var:
    npm run dev
    ```
 
-**Not**: `.env.local` dosyası git'e yüklenmez (.gitignore'da tanımlı). API anahtarınızı asla git'e eklemeyin.
-
-## 🎨 Tasarım
-
-### Renk Paleti
-- **Arka Plan**: Siyah (`#000000`)
-- **Kullanıcı Mesajları**: Koyu mavi (`bg-blue-900`)
-- **AI Mesajları**: Koyu gri (`bg-gray-900`)
-- **Input Alanı**: Koyu gri (`bg-gray-900`)
-
-### Tasarım Prensipleri
-- **Minimalizm**: Sade ve temiz arayüz
-- **Tek Renk**: Siyah ve koyu mavi tonları
-- **Sabit Yükseklik**: Sayfa kaymaz, sadece chat alanı scroll edilir
-- **Typography**: Inter font ailesi
-
 ## 📁 Proje Yapısı
 
 ```
-chatbot-akdeniz/
+balikci/
 ├── app/
 │   ├── layout.tsx       # Ana layout
 │   ├── page.tsx         # Chat sayfası
@@ -112,29 +96,6 @@ chatbot-akdeniz/
 2. Gerçek hayat örnekleri verir
 3. Adım adım mantık oluşturur
 4. Sen yazmaya cesaretlendirilirsin
-
-## ⚙️ Özelleştirme
-
-### Renk Teması
-`tailwind.config.js` dosyasını düzenleyerek renkleri özelleştirebilirsiniz:
-
-```js
-colors: {
-  'navy-dark': '#0a0f1c',
-  'navy-blue': '#101b2d',
-  'chat-bg': '#1a2335',
-  'input-bg': '#0f1624',
-}
-```
-
-### Animasyonlar
-Animasyon süreleri ve efektler `tailwind.config.js` içinde:
-
-```js
-animation: {
-  'fade-in': 'fadeIn 0.6s ease-in-out',
-}
-```
 
 ## 🤝 Katkıda Bulunma
 
